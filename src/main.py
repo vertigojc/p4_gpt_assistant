@@ -19,13 +19,18 @@ These messages will be posted to Discord so you do not sign your message with yo
 p4 = P4()
 p4.connect()
 
+P4_USERS = p4.run_users()
 
-def main(start_):
+
+def main(start_time=None, end_time=None):
     # TODO: Get this from a JSON file.
     with open("data/history.json", "r") as f:
         previous_messages = json.load(f)
 
-    recent_changelists = get_recent_changelists()
+    recent_changelists = get_recent_changelists(start_time, end_time)
+
+    if not recent_changelists:
+        return None
 
     ai_response = get_openai_message(previous_messages, recent_changelists)
 
@@ -54,28 +59,41 @@ def get_openai_message(previous_messages, recent_changelists):
     with open("data/history.json", "w") as f:
         json.dump(
             messages
-            + [{"role": "assistant", "content": response["choices"][0]["message"]}],
+            + [
+                {
+                    "role": "assistant",
+                    "content": response["choices"][0]["message"]["content"],
+                }
+            ],
             f,
             indent=4,
         )
     return response["choices"][0]["message"]["content"]
 
 
-def get_recent_changelists(previous_datetime=None):
+def get_recent_changelists(previous_datetime=None, current_datetime=None):
     if previous_datetime is None:
         previous_datetime = datetime.utcnow() - timedelta(days=1)
     else:
         previous_datetime = datetime.strptime(previous_datetime, "%Y/%m/%d:%H:%M:%S")
     previous_datetime += timedelta(seconds=1)
+
+    if current_datetime is None:
+        current_datetime = "now"
+    else:
+        current_datetime = datetime.strptime(current_datetime, "%Y/%m/%d:%H:%M:%S")
+
     changelist_timestamp = previous_datetime.strftime("%Y/%m/%d:%H:%M:%S")
-    changelists = p4.run_changes("-r", f"@{changelist_timestamp},@now")
+    current_timestamp = current_datetime.strftime("%Y/%m/%d:%H:%M:%S")
+    changelists = p4.run_changes("-r", f"@{changelist_timestamp},@{current_timestamp}")
 
     if not changelists:
-        return [
-            f'No changelists since {previous_datetime.strftime("%Y/%m/%d:%H:%M:%S")}. Give some general encouragement to the team!'
-        ]
+        return []
 
-    cl_details = p4.run_describe("-s", *(cl["change"] for cl in changelists))
+    try:
+        cl_details = p4.run_describe("-s", *(cl["change"] for cl in changelists))
+    except P4Exception:
+        return []
 
     for cl in cl_details:
         if cl.get("depotFile"):
@@ -83,14 +101,13 @@ def get_recent_changelists(previous_datetime=None):
         else:
             cl["unique_folders"] = []
 
-    p4_users = p4.run_users()
-
     return [
         {
             "changelist_number": cl["change"],
             "username": cl["user"],
             "user_full_name": next(
-                user["FullName"] for user in p4_users if user["User"] == cl["user"]
+                (user["FullName"] for user in P4_USERS if user["User"] == cl["user"]),
+                cl["user"],
             ),
             "time": datetime.utcfromtimestamp(int(cl["time"])).strftime(
                 "%Y/%m/%d:%H:%M:%S"
@@ -119,5 +136,16 @@ def extract_unique_directories(file_paths):
 
 
 if __name__ == "__main__":
-    response = main()
-    print(response)
+    start_date = datetime.strptime("2023/11/05:00:00:00", "%Y/%m/%d:%H:%M:%S")
+    past_dates = [start_date.strftime("%Y/%m/%d:%H:%M:%S")]
+    while start_date < datetime.utcnow():
+        start_date += timedelta(days=1)
+        past_dates.append(start_date.strftime("%Y/%m/%d:%H:%M:%S"))
+
+    all_responses = []
+    for i in range(len(past_dates) - 1):
+        print(f"Running {past_dates[i]} to {past_dates[i + 1]}")
+        res = main(past_dates[i], past_dates[i + 1])
+        if res:
+            all_responses.append(res)
+            print(res)
