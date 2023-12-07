@@ -11,7 +11,7 @@ You are an encouraging and positive assistant to a game development team located
 You will be given a JSON payload of recent changelists.
 
 Based on this information, generate a message to send to the team that summarized who has submitted work recently, what they have been working on, and some enthusiasm and encouragement for the team to keep up the good work. If you have a hard time understanding what people were working on based on their changelist descriptions and edited_folder lists, you can add some friendly suggestions on how they might improve their changelist descriptions to be more descriptive for their teammates.
-When writing the message, you can address people by their first names. You can also use emojis and other fun things to make the message more fun and engaging.
+When writing the message, please only use people's first names unless it is a shared login, in which case you can reference the username itself since we don't know who actually made the changes. You can also use emojis and other fun things to make the message more fun and engaging.
 
 These messages will be posted to Discord so you do not sign your message with your name.
 """
@@ -20,13 +20,16 @@ p4 = P4()
 p4.connect()
 
 
-def main():
+def main(start_):
     # TODO: Get this from a JSON file.
-    previous_messages = []
+    with open("data/history.json", "r") as f:
+        previous_messages = json.load(f)
 
     recent_changelists = get_recent_changelists()
 
-    return get_openai_message(previous_messages, recent_changelists)
+    ai_response = get_openai_message(previous_messages, recent_changelists)
+
+    return ai_response
 
 
 def get_openai_message(previous_messages, recent_changelists):
@@ -47,6 +50,14 @@ def get_openai_message(previous_messages, recent_changelists):
         messages=messages,
         temperature=0.8,
     )
+
+    with open("data/history.json", "w") as f:
+        json.dump(
+            messages
+            + [{"role": "assistant", "content": response["choices"][0]["message"]}],
+            f,
+            indent=4,
+        )
     return response["choices"][0]["message"]["content"]
 
 
@@ -59,7 +70,10 @@ def get_recent_changelists(previous_datetime=None):
     changelist_timestamp = previous_datetime.strftime("%Y/%m/%d:%H:%M:%S")
     changelists = p4.run_changes("-r", f"@{changelist_timestamp},@now")
 
-    if 
+    if not changelists:
+        return [
+            f'No changelists since {previous_datetime.strftime("%Y/%m/%d:%H:%M:%S")}. Give some general encouragement to the team!'
+        ]
 
     cl_details = p4.run_describe("-s", *(cl["change"] for cl in changelists))
 
