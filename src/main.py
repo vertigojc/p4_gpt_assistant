@@ -229,7 +229,15 @@ def extract_unique_directories(file_paths):
             parent_dir = parent_dir.parent.parent
         unique_dirs.add(str(parent_dir))
 
-    return unique_dirs
+    # If our list is long, we will go up a level to keep it more succinct.
+    unique_dirs_list = list(unique_dirs)
+    while len(unique_dirs_list) > 12:
+        unique_dirs = set()
+        for directory in unique_dirs_list:
+            unique_dirs.add(str(Path(directory).parent))
+        unique_dirs_list = list(unique_dirs)
+
+    return unique_dirs_list
 
 
 if __name__ == "__main__":
