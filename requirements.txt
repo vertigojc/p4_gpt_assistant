@@ -1,0 +1,4 @@
+openai
+p4python
+requests
+tiktoken
