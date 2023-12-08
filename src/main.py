@@ -1,8 +1,10 @@
 import json
+import os
 from pathlib import Path
 from datetime import datetime, timedelta
 import argparse
 
+import requests
 import openai
 import tiktoken
 from P4 import P4, P4Exception
@@ -28,6 +30,7 @@ p4 = P4()
 p4.connect()
 
 P4_USERS = p4.run_users()
+DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK")
 
 
 def main(start_time=None, end_time=None):
@@ -44,6 +47,8 @@ def main(start_time=None, end_time=None):
         return None
 
     ai_response = get_openai_message(previous_messages, recent_changelists)
+
+    send_discord_message(ai_response)
 
     return ai_response
 
@@ -77,6 +82,7 @@ def ask_query(query):
             f,
             indent=4,
         )
+    send_discord_message(response["choices"][0]["message"]["content"])
     return response["choices"][0]["message"]["content"]
 
 
@@ -85,6 +91,18 @@ def truncate_history(messages):
         print("Too many tokens, removing oldest message")
         messages.pop(1)
     return messages
+
+
+def send_discord_message(message):
+    # Prepare the payload
+    data = {"content": message}
+
+    # Send the POST request to the Discord webhook URL
+    response = requests.post(DISCORD_WEBHOOK, json=data)
+
+    # Check for successful delivery
+    if response.status_code != 204:
+        print(f"Failed to send message, status code: {response.status_code}")
 
 
 def get_openai_message(previous_messages, recent_changelists):
