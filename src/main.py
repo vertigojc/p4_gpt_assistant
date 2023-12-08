@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import argparse
 
 import requests
-import openai
+from openai import OpenAI
 import tiktoken
 from P4 import P4, P4Exception
 
@@ -63,27 +63,29 @@ def ask_query(query):
     messages = truncate_history(messages)
 
     MODEL = "gpt-4-1106-preview"
-    response = openai.ChatCompletion.create(
+
+    client = OpenAI()
+    response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
         temperature=0.7,
     )
-    print(f'---- Used {response["usage"]["total_tokens"]} tokens ----')
+    print(f"---- Used {response.usage.total_tokens} tokens ----")
 
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(
-            messages
-            + [
-                {
-                    "role": "assistant",
-                    "content": response["choices"][0]["message"]["content"],
-                }
-            ],
-            f,
-            indent=4,
-        )
-    send_discord_message(response["choices"][0]["message"]["content"])
-    return response["choices"][0]["message"]["content"]
+    # with open(HISTORY_FILE, "w") as f:
+    #     json.dump(
+    #         messages
+    #         + [
+    #             {
+    #                 "role": "assistant",
+    #                 "content": response.choices[0].message.content,
+    #             }
+    #         ],
+    #         f,
+    #         indent=4,
+    #     )
+    send_discord_message(response.choices[0].message.content)
+    return response.choices[0].message.content
 
 
 def truncate_history(messages):
@@ -115,12 +117,13 @@ def get_openai_message(previous_messages, recent_changelists):
     messages = truncate_history(messages)
 
     MODEL = "gpt-4-1106-preview"
-    response = openai.ChatCompletion.create(
+    client = OpenAI()
+    response = client.chat.completions.create(
         model=MODEL,
         messages=messages,
         temperature=0.7,
     )
-    print(f'---- Used {response["usage"]["total_tokens"]} tokens ----')
+    print(f"---- Used {response.usage.total_tokens} tokens ----")
 
     with open(HISTORY_FILE, "w") as f:
         json.dump(
@@ -128,13 +131,13 @@ def get_openai_message(previous_messages, recent_changelists):
             + [
                 {
                     "role": "assistant",
-                    "content": response["choices"][0]["message"]["content"],
+                    "content": response.choices[0].message.content,
                 }
             ],
             f,
             indent=4,
         )
-    return response["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
 
 
 def get_recent_changelists(previous_datetime=None, current_datetime=None):
