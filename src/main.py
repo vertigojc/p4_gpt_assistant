@@ -144,7 +144,9 @@ def get_recent_changelists(previous_datetime=None, current_datetime=None):
     if previous_datetime is None:
         if LATEST_TIMESTAMP.exists():
             with open(LATEST_TIMESTAMP, "r") as f:
-                previous_datetime = datetime.strptime(f.read(), "%Y/%m/%d:%H:%M:%S")
+                previous_datetime = datetime.strptime(
+                    f.read().strip(), "%Y/%m/%d:%H:%M:%S"
+                )
         else:
             previous_datetime = datetime.utcnow() - timedelta(days=1)
     else:
